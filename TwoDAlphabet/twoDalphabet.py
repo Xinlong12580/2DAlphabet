@@ -39,6 +39,7 @@ class TwoDAlphabet:
         self.df = config.FullTable()
         self.subtagTracker = {}
         self.iterWorkspaceObjs = config.iterWorkspaceObjs
+        print(self.iterWorkspaceObjs)
         self._binningMap = {r:config._section('REGIONS')[r]['BINNING'] for r in config._section('REGIONS').keys()}
         self.ledger = Ledger(self.df)
 
@@ -50,6 +51,7 @@ class TwoDAlphabet:
 
             self.binnings = {}
             for kbinning in config._section('BINNING').keys():
+                print(config._section('BINNING')[kbinning])
                 self.binnings[kbinning] = Binning(kbinning, config._section('BINNING')[kbinning], template)
 
             self.organizedHists = OrganizedHists(
@@ -148,7 +150,7 @@ class TwoDAlphabet:
             plot.make_systematic_plots(self)
 
 # --------------AlphaObj INTERFACE ------ #
-    def AddAlphaObj(self, process, region, obj, ptype='BKG', color=ROOT.kYellow, title=None):
+    def AddAlphaObj(self, process, region, obj, ptype='BKG', color='yellow', title=None):
         '''Start
 
         Args:
@@ -261,7 +263,7 @@ class TwoDAlphabet:
         raise RuntimeError('Cannot find region (%s) in config:\n\t%s'%(region,self._binningMap))
 
     def _getCatNameRobust(self, hname):
-        if hname.split('_')[-1] in ['FULL','SIG','HIGH','LOW']: # simplest case
+        if hname.split('_')[-1] in ['FULL']: # simplest case
             out =  hname.split('_')[-1]
         else: # systematic variation so need to be careful
             this_rname = False
@@ -271,8 +273,8 @@ class TwoDAlphabet:
                     break
 
             if not this_rname: raise RuntimeError('Could not find a region name from %s in "%s"'%(self.ledger.GetRegions(),hname))
-
             start_idx = hname.index(this_rname)+len(this_rname)+1 #+1 for the trailing underscore
+            print(this_rname, start_idx)
             end_idx = hname.index('_',start_idx)
             out = hname[start_idx:end_idx]
         
@@ -283,7 +285,7 @@ class TwoDAlphabet:
         var_lists = {}
         for binningName in self.binnings.keys():
             var_lists[binningName] = {
-                c:ROOT.RooArgList(self.binnings[binningName].xVars[c], self.binnings[binningName].yVar) for c in ['LOW','SIG','HIGH']
+                c:ROOT.RooArgList(self.binnings[binningName].xVars[c], self.binnings[binningName].yVar) for c in self.binnings[binningName].xVars
             }
 
         print ("Making workspace...")
@@ -307,41 +309,79 @@ class TwoDAlphabet:
             MakeCard(subledger, subtag, workspaceDir)
 
 # -------- STAT METHODS ------------------ #
-    def MLfit(self, subtag, cardOrW='card.txt', rMin=-1, rMax=10, setParams={}, verbosity=0, usePreviousFit=False, defMinStrat=0, extra=''):
+    def MLfit(self, subtag, cardOrW='card.txt', rInit=1, rMin=-1, rMax=10, setParams={}, verbosity=0, usePreviousFit=False, defMinStrat=0, extra=''):
         _runDirSetup(self.tag+'/'+subtag)
         with cd(self.tag+'/'+subtag):
             _runMLfit(
                 cardOrW=cardOrW,
                 blinding=self.options.blindedFit,
                 verbosity=verbosity, 
+                rInit=rInit,
                 rMin=rMin, rMax=rMax,
                 setParams=setParams,
                 usePreviousFit=usePreviousFit,
-        defMinStrat=defMinStrat,
+                defMinStrat=defMinStrat,
                 extra=extra)
             make_postfit_workspace('')
             # systematic_analyzer_cmd = 'python $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/systematicsAnalyzer.py card.txt --all -f html > systematics_table.html'
             # execute_cmd(systematic_analyzer_cmd)    
 
-    def StdPlots(self, subtag, ledger=None, prefit=False):
+    def StdPlots(self, subtag, ledger=None, plotSplusB=True, vtol=0.3, stol=0.1, vtol2=2.0, stol2=0.5, regex='^(?!.*(_bin_|_par))', corrthresh=0.0, corrtext=False, lumiText=r'138 $fb^{-1}$ (13 TeV)', extraText='Preliminary', subtitles={}, units='GeV', regionsToGroup=[]):
         '''
         Args:
-            prefit (bool): If True, plots the prefit distributions instead of postfit. Defaults to False.
+            subtag (str): 'b' or 's' to denote background-only or signal-plus-background fit result.
+            ledger (TwoDAlphabet.ledger): Ledger object containing the information needed for plotting the specific fit result.
+            plotSplusB (bool): If False, plots background-only fit results. If True, plots the signal-plus-background fit results as well. Useful
+                               if fitting a control region where the s+b result is not relevant and/or fit didn't converge. Defaults to True. 
+            vtol (float): Report nuisances whose value changes by more than this number of sigmas
+            stol (float): Report nuisances whose sigma changes by more than this amount
+            vtol2 (float): Report severely nuisances whose value changes by more than this number of sigmas
+            stol2 (float): Report severely nuisances whose sigma changes by more than this amount
+            regex (str): Include only nuisance parameters that passes the following regex filter. Defaults to a regular expression that omits the 
+                         unconstrained "*_bin_*" parameters representing the data-driven estimate and "_par*" parameters representing the 
+                         unconstrained transfer function parameters.
+            corrthresh (float): Threshold for nuisance parameter value to be included in the correlation matrix. Defaults to 0.0 (all NPs included)
+            corrtext (bool): Whether or not to write the correlation value to each point in the correlation matrix. Defaults to False, since often 
+                             there are too many parameters and the values look ugly or even useless due to crowding.
+            lumiText (str): LaTeX-formatted string containing luminosity information. Ensure that a raw string is passed and that all latex is wrapped
+                            in $$. Defaults to Run2 conditions.
+            extraText (str): Additional text to place after experiment (CMS) text. Defaults to "Preliminary"
+            subtitles ({str:str}): Dict of raw strings corresponding to each region specified in the JSON to be placed underneath axis slice text in 
+                                   top left corner of pad. If multiple titles are desired, separate with semicolon character.
+                                   Example: 
+                                        {
+                                            "SR_fail": r"$ParticleNet_{TvsQCD}$ Pass;$ParticleNetMD_{Xbb}$ Fail", 
+                                            "SR_pass": r"$ParticleNet_{TvsQCD}$ Pass;$ParticleNetMD_{Xbb}$ Pass"
+                                        }
+            regionsToGroup ([[str]]):
+                List of list of strings representing the desired regions to group. For example if the fit involved
+                four regions: CR_fail, CR_pass, SR_fail, SR_pass then 2DAlphabet will try to plot all
+                (4 regions) x (3 slices) = 12 plots on the same page, which is greater than the number that can be
+                plotted. Instead, pass regionsToGroup = [['CR'],['SR']] to have the CR and SR plotted on separate
+                2x3 canvases.
+                If you wanted to plot, e.g. SR_fail, SR_pass, and CR_pass, pass in the following list of lists:
+                    [['CR'], ['SR'], ['SR_fail','SR_pass','CR_pass']]
+                The order matters if the sub-list contains multiple strings - the regions are plotted in order
+                with the first on top and last on bottom of the canvas.
+
+        Returns:
+            None
         '''
         run_dir = self.tag+'/'+subtag
         with cd(run_dir):
             if ledger == None:
                 ledger = LoadLedger('')
-            plot.nuis_pulls()
+            plot.nuis_pulls(vtol=vtol, stol=stol, vtol2=vtol2, stol2=stol2, regex=regex)
             plot.save_post_fit_parametric_vals()
             plot.plot_correlation_matrix( # Ignore nuisance parameters that are bins
                 varsToIgnore=self.ledger.alphaParams.name[self.ledger.alphaParams.name.str.contains('_bin_\d+-\d+')].to_list(),
-                threshold=0, # change this to reduce the size of the correlation matrix to only those variables with correlations above a threshold
-        corrText=False # change this if you want the correlation matrix to write the number values to each grid square (often there are too many parameters and looks ugly/useless)
+                threshold=corrthresh,
+                corrText=False
             )
             plot.gen_post_fit_shapes()
-            plot.gen_projections(ledger, self, 'b', prefit)
-            plot.gen_projections(ledger, self, 's', prefit)
+            plot.gen_projections(ledger=ledger, twoD=self, fittag='b', lumiText=lumiText, extraText=extraText, subtitles=subtitles, units=units, regionsToGroup=regionsToGroup)
+            if plotSplusB:
+                plot.gen_projections(ledger=ledger, twoD=self, fittag='s', lumiText=lumiText, extraText=extraText, subtitles=subtitles, units=units, regionsToGroup=regionsToGroup)
             
     def GetParamsOnMatch(self, regex='', subtag='', b_or_s='b'):
         out = {}
@@ -433,14 +473,16 @@ class TwoDAlphabet:
         return masked_regions
 
     def GoodnessOfFit(self, subtag, ntoys, card_or_w='card.txt', freezeSignal=False, seed=123456,
-                            verbosity=0, extra='', condor=False, eosRootfiles=None, njobs=0, makeEnv=False):
+                            verbosity=0, extra='', condor=False, eosRootfiles=None, njobs=0, makeEnv=False, lorienTag=False):
         # NOTE: There's no way to blind data here - need to evaluate it to get the p-value
         # param_str = '' if setParams == {} else '--setParameters '+','.join(['%s=%s'%(p,v) for p,v in setParams.items()])
 
         run_dir = self.tag+'/'+subtag
+        print(f'Entering run directory: {run_dir}')
         _runDirSetup(run_dir)
         
         with cd(run_dir):
+            print(os.getcwd())
             gof_data_cmd = [
                 'combine -M GoodnessOfFit',
                 '-d '+card_or_w,
@@ -477,19 +519,21 @@ class TwoDAlphabet:
                     ) for _ in range(njobs)
                 ]
 
-            if not makeEnv:
-                print('\nWARNING: running toys on condor but not making CMSSW env tarball. If you want/need to make a tarball of your current CMSSW environment, run GoodnessOfFit() with makeEnv=True')
 
-            condor = CondorRunner(
-                name = self.tag+'_'+subtag+'_gof_toys',
-                primaryCmds=gof_toy_cmds,
-                toPkg=self.tag+'/',
-                runIn=run_dir,
-                toGrab=run_dir+'/higgsCombine_gof_toys.GoodnessOfFit.mH120.*.root',
-                eosRootfileTarball=eosRootfiles,
-                remakeEnv=makeEnv
-            )
-            condor.submit()
+                if not makeEnv:
+                    print('\nWARNING: running toys on condor but not making CMSSW env tarball. If you want/need to make a tarball of your current CMSSW environment, run GoodnessOfFit() with makeEnv=True\n')
+
+                condor = CondorRunner(
+                    name = self.tag+'_'+subtag+'_gof_toys',
+                    primaryCmds=gof_toy_cmds,
+                    toPkg=self.tag+'/',
+                    runIn=run_dir,
+                    toGrab=run_dir+'/higgsCombine_gof_toys.GoodnessOfFit.mH120.*.root',
+                    eosRootfileTarball=eosRootfiles,
+                    remakeEnv=makeEnv,
+                    lorienTag=lorienTag
+                )
+                condor.submit()
             
     def SignalInjection(self, subtag, injectAmount, ntoys, blindData=True, card_or_w='card.txt', rMin=-5, rMax=5, 
                               seed=123456, verbosity=0, setParams={}, defMinStrat=0, extra='', condor=False, eosRootfiles=None, njobs=0, makeEnv=False):
@@ -545,8 +589,8 @@ class TwoDAlphabet:
                 )
                 condor.submit()
 
-    def Limit(self, subtag, card_or_w='card.txt', blindData=True, verbosity=0,
-                    setParams={}, condor=False, eosRootfiles=None, makeEnv=False):
+    def Limit(self, subtag, card_or_w='card.txt', blindData=True, verbosity=0, defMinStrat=0,
+                    setParams={}, condor=False, eosRootfiles=None, makeEnv=False, extra=''):
         if subtag == '': 
             raise RuntimeError('The subtag for limits must be non-empty so that the limit will be run in a nested directory.')
 
@@ -554,7 +598,7 @@ class TwoDAlphabet:
         _runDirSetup(run_dir)
 
         with cd(run_dir):
-            limit_cmd = _runLimit(blindData, verbosity, setParams, card_or_w, condor) # runs on this line if location == 'local'
+            limit_cmd = _runLimit(blindData, verbosity, defMinStrat, setParams, card_or_w, condor, extra) # runs on this line if location == 'local'
             
             if condor:
                 if not makeEnv:
@@ -565,7 +609,7 @@ class TwoDAlphabet:
                     toPkg=self.tag+'/',
                     toGrab=run_dir+'/higgsCombineTest.AsymptoticLimits.mH120.root',
                     eosRootfileTarball=eosRootfiles,
-            remakeEnv=makeEnv
+                    remakeEnv=makeEnv
                 )
                 condor.submit()
                 
@@ -769,7 +813,7 @@ def MakeCard(ledger, subtag, workspaceDir):
     imax = 3*len(ledger.GetRegions()) # pass, fail for each 'X' axis category    
     jmax = ledger.nbkgs + ledger.nsignals -1
     kmax = len(ledger.GetShapeSystematics()) # does not include alphaParams
-    channels = ['_'.join(r) for r in itertools.product(ledger.GetRegions(),['LOW','SIG','HIGH'])]
+    channels = ['_'.join(r) for r in itertools.product(ledger.GetRegions(),[str(c) for c in self.binnings[binningName].xVars])]
     
     card_new.write('imax %s\n'%imax)      
     card_new.write('jmax %s\n'%jmax)
@@ -780,7 +824,7 @@ def MakeCard(ledger, subtag, workspaceDir):
     shape_line = 'shapes  {p:20} {r} {file} w:{p}_{r} w:{p}_{r}_$SYSTEMATIC\n'
     alpha_obj_title_map = {}
     for proc,reg in ledger.GetProcRegPairs():
-        for cat in ['LOW','SIG','HIGH']:
+        for cat in [str(c) for c in self.binnings[binningName].xVars]:
             if proc in ledger.alphaObjs.process.unique():
                 this_line = shape_line.replace(' w:{p}_{r}_$SYSTEMATIC','').replace('w:{p}','w:{hname_proc}')
                 title = ledger.alphaObjs[ledger.alphaObjs.process.eq(proc) & ledger.alphaObjs.region.eq(reg)].title.iloc[0]
@@ -823,7 +867,7 @@ def MakeCard(ledger, subtag, workspaceDir):
         if proc == 'data_obs': continue
         combine_idx = combine_idx_map[combine_idx_map.process.eq(proc)].combine_idx.iloc[0]
 
-        for cat in ['LOW','SIG','HIGH']:
+        for cat in [str(c) for c in self.binnings[binningName].xVars]:
             chan = '%s_%s'%(region,cat)
 
             bin_line += '{0:20} '.format(chan)
@@ -845,7 +889,7 @@ def MakeCard(ledger, subtag, workspaceDir):
         proc,region = pair
         combine_idx = combine_idx_map[combine_idx_map.process.eq(alpha_obj_title_map[pair])].combine_idx.iloc[0]
         
-        for cat in ['LOW','SIG','HIGH']:
+        for cat in [str(c) for c in self.binnings[binningName].xVars]:
             chan = '%s_%s'%(region, cat)
 
             bin_line += '{0:20} '.format(chan)
@@ -874,26 +918,28 @@ def MakeCard(ledger, subtag, workspaceDir):
     card_new.close()
     ledger.Save(subtag)
 
-def _runMLfit(cardOrW, blinding, verbosity, rMin, rMax, setParams, usePreviousFit=False, defMinStrat=0, extra=''):
+def _runMLfit(cardOrW, blinding, verbosity, rInit, rMin, rMax, setParams, defMinStrat, usePreviousFit=False, extra=''):
     '''
     defMinStrat (int): sets the cminDefaultMinimizerStrategy option for the ML fit
     0: speed    (evaluate function less often)
     1: balance
     2: robustness   (waste function calls to get precise answers)
     Hesse (error/correlation estimation) will be run only if the strategy is 1 or 2
+    rInit: initial value of r
     '''
     if defMinStrat not in [0, 1, 2]:
         raise RuntimeError("Invalid cminDefaultMinimizerStrategy passed ({}) - please ensure that defMinStrat = 0, 1, or 2".format(defMinStrat))
+
     if usePreviousFit: param_options = ''
     else:              param_options = '--text2workspace "--channel-masks" '
-    params_to_set = ','.join(['mask_%s_SIG=1'%r for r in blinding]+['%s=%s'%(p,v) for p,v in setParams.items()]+['r=1'])
+    params_to_set = ','.join(['mask_%s_SIG=1'%r for r in blinding]+['%s=%s'%(p,v) for p,v in setParams.items()]+['r=%s'%rInit])
     param_options += '--setParameters '+params_to_set
 
     fit_cmd = 'combine -M FitDiagnostics {card_or_w} {param_options} --saveWorkspace --cminDefaultMinimizerStrategy {defMinStrat} --rMin {rmin} --rMax {rmax} -v {verbosity} {extra}'
     fit_cmd = fit_cmd.format(
         card_or_w='initifalFitWorkspace.root --snapshotName initialFit' if usePreviousFit else cardOrW,
         param_options=param_options,
-    defMinStrat=defMinStrat,
+        defMinStrat=defMinStrat,
         rmin=rMin,
         rmax=rMax,
         verbosity=verbosity,
@@ -908,18 +954,24 @@ def _runMLfit(cardOrW, blinding, verbosity, rMin, rMax, setParams, usePreviousFi
 
     execute_cmd(fit_cmd, out='FitDiagnostics.log')
 
-def _runLimit(blindData, verbosity, setParams, card_or_w='card.txt', condor=False):
+def _runLimit(blindData, verbosity, defMinStrat, setParams, card_or_w='card.txt', condor=False, extra=''):
     # card_or_w could be `morphedWorkspace.root --snapshotName morphedModel`
+
+    if defMinStrat not in [0, 1, 2]:
+        raise RuntimeError("Invalid cminDefaultMinimizerStrategy passed ({}) - please ensure that defMinStrat = 0, 1, or 2".format(defMinStrat))
+
     param_options = ''
     if len(setParams) > 0:
         param_options = '--setParameters '+','.join('%s=%s'%(k,v) for k,v in setParams.items())
 
-    limit_cmd = 'combine -M AsymptoticLimits -d {card_or_w} --saveWorkspace --cminDefaultMinimizerStrategy 0 {param_opt} {blind_opt} -v {verb}' 
+    limit_cmd = 'combine -M AsymptoticLimits -d {card_or_w} --saveWorkspace --cminDefaultMinimizerStrategy {defMinStrat} {param_opt} {blind_opt} -v {verb} {extra}' 
     limit_cmd = limit_cmd.format(
         card_or_w=card_or_w,
         blind_opt='--run=blind' if blindData else '',
         param_opt=param_options,
-        verb=verbosity
+        verb=verbosity,
+        defMinStrat=defMinStrat,
+        extra=extra
     )
 
     # Run combine if not on condor
@@ -944,6 +996,8 @@ def make_postfit_workspace(d=''):
     w = w_f.Get('w')
     fr_f = ROOT.TFile.Open(d+'fitDiagnosticsTest.root')
     fr = fr_f.Get('fit_b')
+    if (fr == None):
+        raise ValueError(f'Fit result "fit_b" does not exist in fit result file {fr_f}')
     myargs = ROOT.RooArgSet(fr.floatParsFinal())
     w.saveSnapshot('initialFit',myargs,True)
     fout = ROOT.TFile('initialFitWorkspace.root', "recreate")

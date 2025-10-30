@@ -3,10 +3,11 @@ import ROOT, json, os, pandas, re, warnings, itertools
 from numpy import nan
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
+from TwoDAlphabet.plotstyle import mpl_to_root_colors, root_to_matplotlib_color
 from TwoDAlphabet.helpers import copy_update_dict, open_json, parse_arg_dict, replace_multi
 from TwoDAlphabet.binning import Binning, copy_hist_with_new_bins, get_bins_from_hist
 
-_protected_keys = ["PROCESSES","SYSTEMATICS","REGIONS","BINNING","OPTIONS","GLOBAL","SCALE","COLOR","TYPE","X","Y","TITLE","BINS","NBINS","LOW","HIGH"]
+_protected_keys = ["PROCESSES","SYSTEMATICS","REGIONS","BINNING","OPTIONS","GLOBAL","SCALE","COLOR","TYPE","X","Y","TITLE","BINS","NBINS"]
 _syst_col_defaults = {
     # 'variation': nan,
     'lnN': nan,
@@ -99,10 +100,13 @@ class Config:
         json.dump(self.config,file_out,indent=2,sort_keys=True)
         file_out.close()
 
-    def FullTable(self):
+    def FullTable(self,verbose=False):
         '''Generate full table of processes, regions, and systematic variations
         to account for, including relevant information for each. The table is
         returned as a pandas DataFrame for convenient manipulation.
+
+        Args:
+            verbose (bool): If True, prints the regions, processes, and systematics dataframe tables to .txt files.
 
         Returns:
             pandas.DataFrame: Table
@@ -111,9 +115,10 @@ class Config:
         processes = self._processTable()
         systematics = self._systematicsTable()
 
-        regions.to_string('regions.txt')
-        processes.to_string('processes.txt')
-        systematics.to_string('systematics.txt')
+        if verbose:
+            regions.to_string('regions.txt')
+            processes.to_string('processes.txt')
+            systematics.to_string('systematics.txt')
 
         for p,group in processes.groupby(processes.index):
             if group.title.nunique() > 1:
@@ -411,14 +416,18 @@ class OrganizedHists():
                     h.SetName(row.out_histname)
 
                 h.SetTitle(row.out_histname)
-                h.SetFillColor(row.color)
+                if row.color not in mpl_to_root_colors.keys():
+                    available_colors = '", "'.join(mpl_to_root_colors.keys())
+                    raise ValueError(f'Color "{row.color}" not defined. Please add the ROOT TColor code to the "mpl_to_root_colors" dictionary defined in TwoDAlphabet.plotstyle. Available default colors are: "{available_colors}"')
+                else:
+                    h.SetFillColor(mpl_to_root_colors[row.color])
 
                 self.file.WriteTObject(h, row.out_histname)
                 self.CreateSubRegions(h, binning)
 
             infile.Close()
 
-    def Get(self,histname='',process='',region='',systematic='',subspace='FULL'):
+    def Get(self,histname='',process='',region='',systematic=''):
         '''Get histogram from the opened TFile. Specify the histogram
         you want via `histname` or by the combination of `process`, `region`,
         and `systematic` options. The `histname` option will take priority.
@@ -428,16 +437,11 @@ class OrganizedHists():
             process (str, optional): Name of process to search for. Must be used in conjunction with `region` and `systematic` options. Overridden by `histname`. Defaults to ''.
             region (str, optional): Name of region to search for. Must be used in conjunction with `process` and `systematic` options. Overridden by `histname`. Defaults to ''.
             systematic (str, optional): Name of systematic to search for. Must be used in conjunction with `process` and `region` options. Overridden by `histname`. Defaults to ''.
-            subspace (str, optional): Name of subspace. Default is 'FULL' with other options being 'LOW', 'SIG', and 'HIGH'.
-
-        Raises:
-            NameError: If subspace option is not 'FULL','LOW','SIG', or 'HIGH'.
 
         Returns:
             TH2F: Histogram from file.
         '''
-        if subspace not in ['FULL','LOW','SIG','HIGH']:
-            raise NameError("Subspace '%s' not accepted. Options are 'FULL','LOW','SIG','HIGH'.")
+        subspace='FULL'
         if histname == '':
             histname = '_'.join([process,region,subspace])
             if systematic != '':
