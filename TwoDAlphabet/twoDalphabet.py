@@ -41,7 +41,7 @@ class TwoDAlphabet:
         self.subtagTracker = {}
         self.iterWorkspaceObjs = config.iterWorkspaceObjs
         self._binningMap = {r:config._section('REGIONS')[r]['BINNING'] for r in config._section('REGIONS').keys()}
-            
+                    
             
         self.ledger = Ledger(self.df)
 
@@ -54,7 +54,7 @@ class TwoDAlphabet:
             self.binnings = {}
             for kbinning in config._section('BINNING').keys():
                 self.binnings[kbinning] = Binning(kbinning, config._section('BINNING')[kbinning], template)
-
+                print(self.binnings[kbinning].xbinByCat)
             self.organizedHists = OrganizedHists(
                 self.tag+'/', self.binnings,
                 self.GetHistMap(), readOnly=False
@@ -71,7 +71,6 @@ class TwoDAlphabet:
             self.ledger = LoadLedger(self.tag+'/')
 
             self.workspace = None
-            
         self._sectionMap = {}
         for region in self._binningMap:
             self._sectionMap[region] = ["sec0"]
@@ -154,6 +153,7 @@ class TwoDAlphabet:
 
         pickle.dump(self.binnings,open(self.tag+'/binnings.p','wb'))
         self.ledger.Save(self.tag)
+        print("VS2", self.GetBinningFor("VS2")[0].xbinByCat)
         if self.options.plotTemplateComparisons:
             plot.make_systematic_plots(self)
 
@@ -333,7 +333,7 @@ class TwoDAlphabet:
                 usePreviousFit=usePreviousFit,
                 defMinStrat=defMinStrat,
                 extra=extra)
-            make_postfit_workspace(M)
+            make_postfit_workspace('')
             # systematic_analyzer_cmd = 'python $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/systematicsAnalyzer.py card.txt --all -f html > systematics_table.html'
             # execute_cmd(systematic_analyzer_cmd)    
 

@@ -168,19 +168,27 @@ class Plotter(object):
                     # 2D distributions first
                     out2d_name = '%s_%s_%s_2D'%(process,region,time)
 
-                    low_name = loc_base.format(r=region, c='LOW', t=time, p=process)
-                    sig_name = loc_base.format(r=region, c='SIG', t=time, p=process)
-                    high_name = loc_base.format(r=region, c='HIGH',t=time, p=process)
+                    #low_name = loc_base.format(r=region, c='LOW', t=time, p=process)
+                    #sig_name = loc_base.format(r=region, c='SIG', t=time, p=process)
+                    #high_name = loc_base.format(r=region, c='HIGH',t=time, p=process)
                     
-                    low  = shapes_file.Get(low_name)
-                    sig  = shapes_file.Get(sig_name)
-                    high = shapes_file.Get(high_name)
+                    #low  = shapes_file.Get(low_name)
+                    #sig  = shapes_file.Get(sig_name)
+                    #high = shapes_file.Get(high_name)
 
-                    if low == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(low_name, self.fittag))
-                    if sig == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(sig_name, self.fittag))
-                    if high == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(high_name, self.fittag))
+                    #if low == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(low_name, self.fittag))
+                    #if sig == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(sig_name, self.fittag))
+                    #if high == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(high_name, self.fittag))
 
-                    full = stitch_hists_in_x(out2d_name, binning, [low,sig,high], blinded=blinding if process == 'data_obs' else [])
+                    #full = stitch_hists_in_x(out2d_name, binning, [low,sig,high], blinded=blinding if process == 'data_obs' else [])
+                    sec_hists = []
+                    for sec in binning.xbinByCat:
+                        sec_name = loc_base.format(r=region, c=sec, t=time, p=process)
+                        sec_hist = shapes_file.Get(sec_name)
+                        if sec_hist == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(sec_name, self.fittag))
+                        sec_hists.append(sec_hist)
+                    full = stitch_hists_in_x(out2d_name, binning, sec_hists, blinded=blinding if process == 'data_obs' else [])
+
                     full.SetMinimum(0)
                     full.SetTitle('%s, %s, %s'%(proc_title,region,time))
 
@@ -509,7 +517,12 @@ def make_ax_1D(outname, binning, blinding, data, bkgs=[], signals=[], title='', 
     islice = outname.split('/')[-1].split('_')[1].split('proj')[-1][1]; islice = int(islice)
     if projn == 'x':
         xbins = binning.xbinByCat
-        edges = np.array(xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH'])
+        #edges = np.array(xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH'])
+        edges = xbins["sec0"][:] #make a copy - not a reference
+        for cat in xbins:
+            if cat != "sec0":
+                edges += xbins[cat][1:]
+        edges = np.array(edges)
     else:
         edges = np.array(binning.ybinList)
     widths = np.diff(edges)     # obtain bin widths
@@ -731,7 +744,7 @@ def make_systematic_plots(twoD):
 
         nominal_full = twoD.organizedHists.Get(process=p, region=r, systematic='')
         binning, _ = twoD.GetBinningFor(r)
-
+        print(r, binning.xbinByCat)
         for axis in ['X','Y']:
 
             nominal_hist = getattr(nominal_full,'Projection'+axis)('%s_%s_%s_%s'%(p,r,'nom','proj'+axis))
@@ -740,7 +753,12 @@ def make_systematic_plots(twoD):
             # Get the bin edges from the 2DAlphabet binning object. Avoid edge duplication in the case of X-axis stitching
             if axis == 'X':
                 xbins = binning.xbinByCat
-                edges = xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH']
+                #edges = xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH']
+                edges = xbins["sec0"][:] #make a copy - not a reference
+                for cat in xbins:
+                    if cat != "sec0":
+                        edges += xbins[cat][1:]
+
             else:
                 edges = binning.ybinList
 

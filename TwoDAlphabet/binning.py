@@ -105,7 +105,7 @@ class Binning:
         #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
         #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
         slices = [0]
-        for sec in self.xbinByDict:
+        for sec in self.xbinByCat:
             slices.append(self.GlobalXbinIdx(-1,sec))
         return slices
 
