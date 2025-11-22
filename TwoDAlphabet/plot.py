@@ -181,13 +181,13 @@ class Plotter(object):
                     #if high == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(high_name, self.fittag))
 
                     #full = stitch_hists_in_x(out2d_name, binning, [low,sig,high], blinded=blinding if process == 'data_obs' else [])
-                    sec_hists = []
-                    for sec in binning.xbinByCat:
-                        sec_name = loc_base.format(r=region, c=sec, t=time, p=process)
-                        sec_hist = shapes_file.Get(sec_name)
-                        if sec_hist == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(sec_name, self.fittag))
-                        sec_hists.append(sec_hist)
-                    full = stitch_hists_in_x(out2d_name, binning, sec_hists, blinded=blinding if process == 'data_obs' else [])
+                    subregion_hists = []
+                    for subregion in binning.xbinByCat:
+                        subregion_name = loc_base.format(r=region, c=subregion, t=time, p=process)
+                        subregion_hist = shapes_file.Get(subregion_name)
+                        if subregion_hist == None: raise IOError('Could not find histogram %s in postfitshapes_%s.root'%(subregion_name, self.fittag))
+                        subregion_hists.append(subregion_hist)
+                    full = stitch_hists_in_x(out2d_name, binning, subregion_hists, blinded=blinding if process == 'data_obs' else [])
 
                     full.SetMinimum(0)
                     full.SetTitle('%s, %s, %s'%(proc_title,region,time))
@@ -518,9 +518,9 @@ def make_ax_1D(outname, binning, blinding, data, bkgs=[], signals=[], title='', 
     if projn == 'x':
         xbins = binning.xbinByCat
         #edges = np.array(xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH'])
-        edges = xbins["sec0"][:] #make a copy - not a reference
+        edges = xbins["Region0"][:] #make a copy - not a reference
         for cat in xbins:
-            if cat != "sec0":
+            if cat != "Region0":
                 edges += xbins[cat][1:]
         edges = np.array(edges)
     else:
@@ -754,9 +754,9 @@ def make_systematic_plots(twoD):
             if axis == 'X':
                 xbins = binning.xbinByCat
                 #edges = xbins['LOW'][:-1]+xbins['SIG'][:-1]+xbins['HIGH']
-                edges = xbins["sec0"][:] #make a copy - not a reference
+                edges = xbins["Region0"][:] #make a copy - not a reference
                 for cat in xbins:
-                    if cat != "sec0":
+                    if cat != "Region0":
                         edges += xbins[cat][1:]
 
             else:

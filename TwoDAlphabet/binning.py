@@ -105,8 +105,8 @@ class Binning:
         #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
         #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
         slices = [0]
-        for sec in self.xbinByCat:
-            slices.append(self.GlobalXbinIdx(-1,sec))
+        for subregion in self.xbinByCat:
+            slices.append(self.GlobalXbinIdx(-1,subregion))
         return slices
 
     @property
@@ -291,9 +291,9 @@ def binlist_to_bindict(binList, boundaries):
     #        return_bins['SIG'].append(b)
     #    if b >= sigHigh:
     #        return_bins['HIGH'].append(b)
-    return_bins = {"sec0": []}
+    return_bins = {"Region0": []}
     for i in range(len(boundaries)):
-        return_bins[f"sec{i+1}"] = []
+        return_bins[f"Region{i+1}"] = []
     for boundry in boundaries:
         if boundry not in binList:
             raise ValueError('The signal region edges must be in the list of bin edges. The value %s is not in the provided list of bin edges (%s).'%(boundry,binList))
@@ -301,11 +301,11 @@ def binlist_to_bindict(binList, boundaries):
     for i in range(len(boundaries)):
         for b in binList:
             if b >= bin_start and b <= boundaries[i]:
-                return_bins[f"sec{i}"].append(b)
+                return_bins[f"Region{i}"].append(b)
         bin_start = boundaries[i]  
     for b in binList:
         if b >= bin_start:
-            return_bins[f"sec{len(boundaries)}"].append(b)
+            return_bins[f"Region{len(boundaries)}"].append(b)
     return return_bins 
 
 def concat_bin_dicts(binDict):
@@ -321,9 +321,9 @@ def concat_bin_dicts(binDict):
     #bins_list = list(binDict['LOW']) # need list() to make a copy - not a reference
     #for c in ['SIG','HIGH']:
     #    bins_list.extend(binDict[c][1:])
-    bins_list = list(binDict["sec0"]) # need list() to make a copy - not a reference
+    bins_list = list(binDict["Region0"]) # need list() to make a copy - not a reference
     for c in range(len(binDict) - 1):
-        bins_list.extend(binDict[f"sec{c+1}"][1:])
+        bins_list.extend(binDict[f"Region{c+1}"][1:])
     return bins_list
 
 def concat_bin_lists(binLists):
