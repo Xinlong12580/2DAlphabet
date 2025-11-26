@@ -73,12 +73,10 @@ class TwoDAlphabet:
             self.workspace = None
         self._subregionMap = {}
         for region in self._binningMap:
-            #self._subregionMap[region] = ["sec0"]
             self._subregionMap[region] = ["Region0"]
             kbinning = self._binningMap[region]
             lboundaries = len(self.binnings[kbinning].boundaries) 
             for i in range(lboundaries):
-                #self._subregionMap[region].append(f"sec{i+1}")
                 self._subregionMap[region].append(f"Region{i+1}")
         if self.options.debugDraw is False:
             ROOT.gROOT.SetBatch(True)
@@ -155,7 +153,6 @@ class TwoDAlphabet:
 
         pickle.dump(self.binnings,open(self.tag+'/binnings.p','wb'))
         self.ledger.Save(self.tag)
-        print("VS2", self.GetBinningFor("VS2")[0].xbinByCat)
         if self.options.plotTemplateComparisons:
             plot.make_systematic_plots(self)
 
@@ -273,8 +270,6 @@ class TwoDAlphabet:
         raise RuntimeError('Cannot find region (%s) in config:\n\t%s'%(region,self._binningMap))
 
     def _getCatNameRobust(self, hname):
-        #if hname.split('_')[-1] in ['FULL','SIG','HIGH','LOW']: # simplest case
-        #if hname.split('_')[-1].startswith("FULL") or hname.split('_')[-1].startswith("sec"): # simplest case
         if hname.split('_')[-1].startswith("FULL") or (hname.split('_')[-1].startswith("Region") and hname.split('_')[-1][6:].isdigit()): # simplest case
             out =  hname.split('_')[-1]
         else: # systematic variation so need to be careful
@@ -297,7 +292,6 @@ class TwoDAlphabet:
         var_lists = {}
         for binningName in self.binnings.keys():
             var_lists[binningName] = {
-                #c:ROOT.RooArgList(self.binnings[binningName].xVars[c], self.binnings[binningName].yVar) for c in ['LOW','SIG','HIGH']
                 c:ROOT.RooArgList(self.binnings[binningName].xVars[c], self.binnings[binningName].yVar) for c in self.binnings[binningName].xbinByCat
             }
 
@@ -479,8 +473,6 @@ class TwoDAlphabet:
 
         for i in range(allVars.getSize()):
             var = allVars[i]
-            #if 'mask_' in var.GetName() and '_SIG_' in var.GetName():
-            #if 'mask_' in var.GetName() and '_sec1_' in var.GetName():
             if 'mask_' in var.GetName() and '_Region1_' in var.GetName():
                 if var.getValV() == 1:
                     masked_regions.append(var.GetName())
@@ -830,7 +822,6 @@ def MakeCard(ledger, subregionMap, subtag, workspaceDir):
     #imax = 3*len(ledger.GetRegions()) # pass, fail for each 'X' axis category    
     jmax = ledger.nbkgs + ledger.nsignals -1
     kmax = len(ledger.GetShapeSystematics()) # does not include alphaParams
-    #channels = ['_'.join(r) for r in itertools.product(ledger.GetRegions(),['LOW','SIG','HIGH'])]
     imax = 0
     channels = []
     for region in ledger.GetRegions():
@@ -840,7 +831,6 @@ def MakeCard(ledger, subregionMap, subtag, workspaceDir):
             channels.append(f"{region}_{subregion}")
             imax += 1
         
-    print(channels) 
     card_new.write('imax %s\n'%imax)      
     card_new.write('jmax %s\n'%jmax)
     card_new.write('kmax %s\n'%kmax)
@@ -850,7 +840,6 @@ def MakeCard(ledger, subregionMap, subtag, workspaceDir):
     shape_line = 'shapes  {p:20} {r} {file} w:{p}_{r} w:{p}_{r}_$SYSTEMATIC\n'
     alpha_obj_title_map = {}
     for proc,reg in ledger.GetProcRegPairs():
-        #for cat in ['LOW','SIG','HIGH']:
         for cat in subregionMap[reg]:
             if proc in ledger.alphaObjs.process.unique():
                 this_line = shape_line.replace(' w:{p}_{r}_$SYSTEMATIC','').replace('w:{p}','w:{hname_proc}')
@@ -894,7 +883,6 @@ def MakeCard(ledger, subregionMap, subtag, workspaceDir):
         if proc == 'data_obs': continue
         combine_idx = combine_idx_map[combine_idx_map.process.eq(proc)].combine_idx.iloc[0]
 
-        #for cat in ['LOW','SIG','HIGH']:
         for cat in subregionMap[region]:
             chan = '%s_%s'%(region,cat)
 
@@ -917,7 +905,6 @@ def MakeCard(ledger, subregionMap, subtag, workspaceDir):
         proc,region = pair
         combine_idx = combine_idx_map[combine_idx_map.process.eq(alpha_obj_title_map[pair])].combine_idx.iloc[0]
         
-        #for cat in ['LOW','SIG','HIGH']:
         for cat in subregionMap[region]:
             chan = '%s_%s'%(region, cat)
 
@@ -962,7 +949,6 @@ def _runMLfit(cardOrW, blinding, verbosity, rInit, rMin, rMax, setParams, defMin
     if usePreviousFit: param_options = ''
     else:              param_options = '--text2workspace "--channel-masks" '
     #params_to_set = ','.join(['mask_%s_SIG=1'%r for r in blinding]+['%s=%s'%(p,v) for p,v in setParams.items()]+['r=%s'%rInit])
-    #params_to_set = ','.join(['mask_%s_sec1=1'%r for r in blinding]+['%s=%s'%(p,v) for p,v in setParams.items()]+['r=%s'%rInit])
     params_to_set = ','.join(['mask_%s_Region1=1'%r for r in blinding]+['%s=%s'%(p,v) for p,v in setParams.items()]+['r=%s'%rInit])
     param_options += '--setParameters '+params_to_set
 

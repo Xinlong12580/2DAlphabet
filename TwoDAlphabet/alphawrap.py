@@ -6,7 +6,6 @@ import itertools
 # import numpy as np
 # from numpy.lib.function_base import piecewise
 
-#_subspace = ['LOW','SIG','HIGH']
 class Generic2D(object):
     '''Wraps binned distributions in a common type so that
     distributions can easily be manipulated and compared. While a full distribution
@@ -40,8 +39,6 @@ class Generic2D(object):
         self.binning = binning
         self.nuisances = []
         self.binVars = OrderedDict()
-        #self.binArgLists = {c:None for c in _subspace}
-        #self.rph = {c:None for c in _subspace}
         self.subspaces = [str(c) for c in binning.xbinByCat]
         self.binArgLists = {c:None for c in self.subspaces}
         self.rph = {c:None for c in self.subspaces}
@@ -68,7 +65,6 @@ class Generic2D(object):
             Generic2D: Object containing the combination of `self` and `other`.
         '''
         out = Generic2D(name,self.binning,self.forcePositive)
-        #for cat in _subspace:
         for cat in self.subspaces:
             new_cat_name = name+'_'+cat
             for ybin in range(1,len(self.binning.ybinList)):
@@ -144,7 +140,6 @@ class Generic2D(object):
         '''
         out_rph = {}
         out_add = {}
-        #for cat in _subspace:
         for cat in self.subspaces:
             cat_name = self.name+'_'+cat
             cat_hist = self.binning.CreateHist(cat_name+'_temp',cat)
@@ -235,7 +230,6 @@ class ParametricFunction(Generic2D):
         self.arglist = RooArgList()
         for n in self.nuisances: self.arglist.add(n['obj'])
 
-        #for cat in _subspace:
         for cat in self.subspaces:
             cat_name = name+'_'+cat
             for ybin in range(1,len(self.binning.ybinList)):
@@ -376,7 +370,6 @@ class SemiParametricFunction(ParametricFunction,Generic2D):
         self.arglist = RooArgList()
         for n in self.nuisances: self.arglist.add(n['obj'])
 
-        #for cat in _subspace:
         for cat in self.subspaces:
             cat_name = name+'_'+cat
             cat_hist = copy_hist_with_new_bins(cat_name,'X',inhist,self.binning.xbinByCat[cat])
@@ -414,7 +407,6 @@ class BinnedDistribution(Generic2D):
                 and any shape templates will asymptotically approach zero as the associated nuisance increases/decreases.
         '''
         super(BinnedDistribution,self).__init__(name,binning,forcePositive=forcePositive)
-        #for cat in _subspace:
         for cat in self.subspaces:
             cat_name = name+'_'+cat
             cat_hist = copy_hist_with_new_bins(cat_name,'X',inhist,self.binning.xbinByCat[cat])
@@ -461,7 +453,6 @@ class BinnedDistribution(Generic2D):
         nuisance_par = RooRealVar(nuis_name,nuis_name,0,-5,5)
         self.nuisances.append({'name':nuis_name, 'constraint':constraint, 'obj': nuisance_par})
 
-        #for cat in _subspace:
         for cat in self.subspaces:
             cat_name = self.name+'_'+cat
             cat_hist_up =   copy_hist_with_new_bins(up_shape.GetName()+'_'+cat,  'X', up_shape,   self.binning.xbinByCat[cat])

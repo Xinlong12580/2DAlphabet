@@ -12,8 +12,6 @@ class Binning:
             start_template (TH2): Histogram to compare against when doing sanity checks.
         '''
         self.name = name
-        #self.sigStart = binning_dict['X']['SIGSTART']
-        #self.sigEnd = binning_dict['X']['SIGEND']
         if 'SIGSTART' in binning_dict['X'] and 'SIGEND' in binning_dict['X']:
             self.boundaries = [binning_dict["X"]["SIGSTART"], binning_dict["X"]["SIGEND"]]
         elif "BOUNDARIES" in  binning_dict['X']:
@@ -23,13 +21,12 @@ class Binning:
             
         self.xtitle = binning_dict['X']['TITLE']
         self.ytitle = binning_dict['Y']['TITLE']
-        #self.xbinByCat, self.ybinList = parse_binning_info(binning_dict)
         self.xbinByCat, self.ybinList = parse_binning_info(binning_dict, self.boundaries)
         self.ySlices,self.ySliceIdx = self._getYslices(binning_dict) # x slices defined as properties
         self._checkBinning('X',start_template)
         self._checkBinning('Y',start_template)
         self.xVars, self.yVar = self.CreateRRVs(binning_dict['X'], binning_dict['Y']) 
-        print(self.xbinList)
+        print(f"X Binning of {self.name}: ", self.xbinList)
     def CreateRRVs(self,xdict,ydict):
         '''Create the RooRealVars representing the X and Y axes.
         For the X axis, three RooRealVars are returned in a dictionary with
@@ -102,8 +99,6 @@ class Binning:
 
     @property
     def xSliceIdx(self):
-        #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
-        #return [0,self.GlobalXbinIdx(0,'SIG'),self.GlobalXbinIdx(-1,'SIG'),len(self.xbinList)-1]
         slices = [0]
         for subregion in self.xbinByCat:
             slices.append(self.GlobalXbinIdx(-1,subregion))
@@ -128,14 +123,6 @@ class Binning:
         return self.xbinList.index(self.xbinByCat[c][xbin])
 
     def xcatFromGlobal(self,xbin):
-        #n_low_bins = len(self.xbinByCat['LOW'])-1
-        #n_sig_bins = len(self.xbinByCat['SIG'])-1
-        #if xbin < n_low_bins+1:
-        #    return xbin,'LOW'
-        #elif xbin < n_low_bins+n_sig_bins+1:
-        #    return xbin-n_low_bins,'SIG'
-        #else:
-        #    return xbin-n_low_bins-n_sig_bins,'HIGH'
         bin_total_len = 0
         for c in self.xbinByCat:
             bin_len = self.xbinByCat[c] 
@@ -225,17 +212,9 @@ def parse_binning_info(binDict, boundaries):
     '''
     for v in ['X','Y']:
         axis = binDict[v]
-        #if (v == 'X') and ('LOW' in axis.keys()) and ('SIG' in axis.keys()) and ('HIGH' in axis.keys()):
-        #    new_bins = {c:parse_axis_info(axis[c]) for c in ['LOW','SIG','HIGH']}
-        #else:
-        #    new_bins = parse_axis_info(axis)
         new_bins = parse_axis_info(axis)
             
         if v == 'X':
-            #if isinstance(new_bins,list):
-            #    newXbins = binlist_to_bindict(new_bins,axis['SIGSTART'],axis['SIGEND'])
-            #else:
-            #    newXbins = new_bins
             newXbins = binlist_to_bindict(new_bins,boundaries)
         elif v == 'Y': newYbins = new_bins
 
@@ -280,17 +259,6 @@ def binlist_to_bindict(binList, boundaries):
     Returns:
         dict: Dictionary of shape {'LOW':[...],'SIG':[...],'HIGH':[...]}
     '''
-    #return_bins = {'LOW':[],'SIG':[],'HIGH':[]}
-    #for s in [sigLow,sigHigh]:
-    #    if s not in binList:
-    #        raise ValueError('The signal region edges must be in the list of bin edges. The value %s is not in the provided list of bin edges (%s).'%(s,binList))
-    #for b in binList:
-    #    if b <= sigLow:
-    #        return_bins['LOW'].append(b)
-    #    if b >= sigLow and b <= sigHigh:
-    #        return_bins['SIG'].append(b)
-    #    if b >= sigHigh:
-    #        return_bins['HIGH'].append(b)
     return_bins = {"Region0": []}
     for i in range(len(boundaries)):
         return_bins[f"Region{i+1}"] = []
@@ -318,9 +286,6 @@ def concat_bin_dicts(binDict):
     Returns:
         list: List of bin edges concatenated from the dictionary entries.
     '''
-    #bins_list = list(binDict['LOW']) # need list() to make a copy - not a reference
-    #for c in ['SIG','HIGH']:
-    #    bins_list.extend(binDict[c][1:])
     bins_list = list(binDict["Region0"]) # need list() to make a copy - not a reference
     for c in range(len(binDict) - 1):
         bins_list.extend(binDict[f"Region{c+1}"][1:])
