@@ -139,9 +139,10 @@ class Plotter(object):
                     blinding = [1]
                 else: blinding = []
             else: blinding = []
-
+            
             self.slices['x'][region] = {'vals': binning.xSlices,'idxs':binning.xSliceIdx}
             self.slices['y'][region] = {'vals': binning.ySlices,'idxs':binning.ySliceIdx}
+            print(self.slices) 
             self.xslices = binning.xSlices # Will be same for all regions, so ok to overwrite.
             
             for process in self.ledger.GetProcesses()+['TotalBkg']:
@@ -198,7 +199,7 @@ class Plotter(object):
                     out_proj_name = '{p}_{r}_{t}_proj{x}{i}'
                     for proj in ['X','Y']:
                         slices = self.slices['x' if proj == 'Y' else 'y'][region]
-
+                        print(proj, slices)
                         for islice in range(3):
                             hname = out_proj_name.format(p=process,r=region,t=time,x=proj.lower(),i=islice)
                             start,stop = _get_start_stop(islice,slices['idxs'])

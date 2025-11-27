@@ -22,7 +22,8 @@ class Binning:
         self.xtitle = binning_dict['X']['TITLE']
         self.ytitle = binning_dict['Y']['TITLE']
         self.xbinByCat, self.ybinList = parse_binning_info(binning_dict, self.boundaries)
-        self.ySlices,self.ySliceIdx = self._getYslices(binning_dict) # x slices defined as properties
+        self.ySlices,self.ySliceIdx = self._getYslices(binning_dict)
+        self.xSlices,self.xSliceIdx = self._getXslices(binning_dict) 
         self._checkBinning('X',start_template)
         self._checkBinning('Y',start_template)
         self.xVars, self.yVar = self.CreateRRVs(binning_dict['X'], binning_dict['Y']) 
@@ -97,16 +98,44 @@ class Binning:
 
         return slices, idxs
 
-    @property
-    def xSliceIdx(self):
-        slices = [0]
-        for subregion in self.xbinByCat:
-            slices.append(self.GlobalXbinIdx(-1,subregion))
-        return slices
+    def _getXslices(self,binning_dict):
+        if 'SLICES' in binning_dict['X']:
+            if len(binning_dict['X']['SLICES']) != 4:
+                raise RuntimeError('Must define X SLICES as a list of four values which represent the edges of the continuous slices.')
+            elif binning_dict['X']['SLICES'][0] != self.xbinList[0]:
+                raise ValueError('First edge of X SLICES does not match axis (%s vs %s)'%(binning_dict['X']['SLICES'][0], self.xbinList[0]))
+            elif binning_dict['X']['SLICES'][-1] != self.xbinList[-1]:
+                raise ValueError('Last edges of X SLICES does not match axis (%s vs %s)'%(binning_dict['X']['SLICES'][-1], self.xbinList[-1]))
+            slices = binning_dict['X']['SLICES']
+            idxs = [0, self.xbinList.index(slices[1]), self.xbinList.index(slices[2]), len(self.xbinList)-1]
+        elif len(self.xbinByCat) == 3:
+            idxs = [0]
+            for subregion in self.xbinByCat:
+                idxs.append(self.GlobalXbinIdx(-1,subregion))
 
-    @property
-    def xSlices(self):
-        return [int(self.xbinList[i]) for i in self.xSliceIdx]
+            slices = [int(self.xbinList[i]) for i in idxs]
+        else:
+            slices, idxs = self._autoXslices()
+
+        return slices, idxs
+
+    def  _autoXslices(self):
+        nbins = len(self.xbinList)-1
+        idxs = [0, int(nbins/4), int(nbins/4)+int(nbins/3), nbins]
+        slices = [int(self.xbinList[i]) for i in idxs]
+
+        return slices, idxs
+    
+    #@property
+    #def xSliceIdx(self):
+    #    slices = [0]
+    #    for subregion in self.xbinByCat:
+    #        slices.append(self.GlobalXbinIdx(-1,subregion))
+    #    return slices
+
+    #@property
+    #def xSlices(self):
+    #    return [int(self.xbinList[i]) for i in self.xSliceIdx]
 
     def GlobalXbinIdx(self,xbin,c):
         '''Evaluate for the bin - a bit tricky since it was built with separate categories.
