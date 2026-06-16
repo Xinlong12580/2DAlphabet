@@ -478,6 +478,17 @@ def copy_hist_with_new_bins(copyName,XorY,inHist,new_bins):
     for static_bin in range(1,static_nbins+1):
         # print 'Bin y: ' + str(binY)
         for rebin in range(1,rebin_nbins+1):
+            def float_l(n1, n2, tol = 1e-4):
+                return (n1 < n2 - tol)
+            def float_g(n1, n2, tol = 1e-4):
+                return (n1 > n2 + tol)
+            def float_eq(n1, n2, tol = 1e-4):
+                return (abs(n1 - n2) <= tol)
+            def float_leq(n1, n2, tol = 1e-4):
+                return (float_l(n1, n2, tol) or float_eq(n1, n2, tol))
+            def float_geq(n1, n2, tol = 1e-4):
+                return (float_g(n1, n2, tol) or float_eq(n1, n2, tol))
+
             new_bin_content = 0
             new_bin_errorsq = 0
             new_bin_min = rebin_axis.GetBinLowEdge(rebin)
@@ -487,21 +498,26 @@ def copy_hist_with_new_bins(copyName,XorY,inHist,new_bins):
             for old_bin in range(1,old_axis.GetNbins()+1):
                 old_bin_min = old_axis.GetBinLowEdge(old_bin)
                 old_bin_max = old_axis.GetBinUpEdge(old_bin)
-                if old_bin_min >= new_bin_max:
+                #if old_bin_min >= new_bin_max:
+                if float_geq(old_bin_min , new_bin_max):
                     break
-                elif old_bin_min >= new_bin_min and old_bin_min < new_bin_max:
-                    if old_bin_max <= new_bin_max:
+                #elif old_bin_min >= new_bin_min and old_bin_min < new_bin_max:
+                elif float_geq(old_bin_min , new_bin_min) and float_l(old_bin_min , new_bin_max):
+                    #if old_bin_max <= new_bin_max:
+                    if float_leq(old_bin_max , new_bin_max):
                         if axis_to_rebin == "X":
                             new_bin_content += inHist.GetBinContent(old_bin,static_bin)
                             new_bin_errorsq += inHist.GetBinError(old_bin,static_bin)**2
                         else:
                             new_bin_content += inHist.GetBinContent(static_bin,old_bin)
                             new_bin_errorsq += inHist.GetBinError(static_bin,old_bin)**2
-                    elif old_bin_max > new_bin_max:
+                    #elif old_bin_max > new_bin_max:
+                    elif float_g(old_bin_max , new_bin_max):
                         raise ValueError(
                             '''The requested %s rebinning does not align bin edges with the input bin edge.
                             Cannot split input bin [%s,%s] with output bin [%s,%s]'''%(axis_to_rebin,old_bin_min,old_bin_max,new_bin_min,new_bin_max))
-                elif old_bin_min <= new_bin_min and old_bin_max > new_bin_min:
+                #elif old_bin_min <= new_bin_min and old_bin_max > new_bin_min:
+                elif float_leq(old_bin_min , new_bin_min) and float_g(old_bin_max , new_bin_min):
                     raise ValueError(
                         '''The requested %s rebinning does not align bin edges with the input bin edge.
                         Cannot split input bin [%s,%s] with output bin [%s,%s]'''%(axis_to_rebin,old_bin_min,old_bin_max,new_bin_min,new_bin_max))
